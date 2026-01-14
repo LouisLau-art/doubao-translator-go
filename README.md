@@ -77,6 +77,26 @@
 
 ### 生产部署
 
+#### 方式一：使用 Docker（推荐）
+
+```bash
+# 构建 Docker 镜像
+docker build -t doubao-translator:latest .
+
+# 启动服务
+docker run -d \
+  --name doubao-translator \
+  -p 5000:5000 \
+  --env-file .env \
+  --restart unless-stopped \
+  doubao-translator:latest
+
+# 或使用 Docker Compose
+docker-compose up -d
+```
+
+#### 方式二：传统方式
+
 ```bash
 # 编译生产版本
 make build-prod
@@ -167,9 +187,22 @@ go-translator/
 ├── go.mod                       # Go 模块依赖
 ├── go.sum                       # 依赖校验和
 ├── Makefile                     # 构建自动化
+├── Dockerfile                   # Docker 镜像构建
+├── docker-compose.yml           # Docker Compose 配置
 ├── .env.example                 # 环境变量示例
+├── .gitignore                   # Git 忽略文件
 ├── CLAUDE.md                    # Claude Code 开发指南
 ├── download-libs.sh             # 前端库下载脚本
+├── api/                         # API 通信模块
+│   └── doubao.go               # 豆包翻译 API 客户端
+├── cache/                       # 缓存系统模块
+│   ├── translator_cache.go     # 翻译结果缓存实现
+│   └── translator_cache_test.go # 缓存系统测试
+├── config/                      # 配置管理模块
+│   ├── config.go               # 配置加载和验证
+│   └── config_test.go          # 配置模块测试
+├── handlers/                    # HTTP 请求处理模块
+│   └── translate.go            # 翻译请求处理
 ├── static/                      # 前端资源
 │   ├── index.html              # 主页面
 │   ├── app.js                  # Vue Petite 应用逻辑
@@ -184,12 +217,15 @@ go-translator/
 
 ## 🔧 技术特性
 
-### 后端特性
-- **智能缓存**: MD5 哈希缓存键，可配置 TTL
+### 后端架构改进
+- **模块化设计**: 将单一的main.go拆分为4个功能模块（api、cache、config、handlers）
+- **智能缓存系统**: 带大小限制和并发安全支持的缓存实现，防止内存泄漏
+- **配置管理**: 统一的配置加载和验证机制，支持环境变量和默认值
+- **错误处理**: 完善的错误响应格式和详细日志记录
 - **速率限制**: 令牌桶算法，防止 API 滥用
-- **文本分块**: 自动拆分超长文本 (800 字符/块)
-- **错误处理**: 详细的错误响应和日志
-- **健康检查**: 独立的健康检查端点
+- **文本分块**: 智能拆分超长文本，保留段落边界
+- **健康检查**: 独立的健康检查端点，支持 Docker 健康检查
+- **并发支持**: 使用 sync.Map 和互斥锁确保线程安全
 
 ### 前端特性
 - **响应式设计**: 适配桌面和移动设备
@@ -197,6 +233,17 @@ go-translator/
 - **本地存储**: 配置和历史记录持久化
 - **公式渲染**: 动态重新渲染数学公式
 - **无障碍**: 键盘导航和屏幕阅读器支持
+
+### 部署优化
+- **Docker容器化**: 轻量级Alpine Linux基础镜像，非特权用户运行
+- **Docker Compose**: 完整的服务编排配置
+- **静态编译**: CGO_ENABLED=0确保可移植性
+- **健康检查**: HTTP健康检查和Docker健康检查
+
+### 测试覆盖
+- **单元测试**: 为config和cache包添加了完整的单元测试
+- **集成测试**: 支持API端点和业务逻辑测试
+- **测试命令**: 提供make test和make test-cover命令
 
 ## ❓ 常见问题
 

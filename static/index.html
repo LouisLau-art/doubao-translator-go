@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>豆包翻译器 - 极速版</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- 使用本地文件 -->
+    <script src="/libs/petite-vue.js"></script>
+    <script src="/libs/marked.min.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+            },
+            startup: {
+                pageReady: () => {
+                    return MathJax.startup.defaultPageReady();
+                }
+            }
+        };
+    </script>
+    <script src="/libs/mathjax/tex-mml-chtml.js"></script>
+    <script>
+        // 等待 MathJax 准备好
+        window.addEventListener('mathjax-ready', () => {
+            console.log('MathJax is ready');
+        });
+        
+        // MathJax v3 会在加载完成后触发这个事件
+        window.MathJax = {
+            startup: {
+                ready() {
+                    window.MathJax.startup.defaultReady();
+                    window.dispatchEvent(new Event('mathjax-ready'));
+                }
+            }
+        };
+    </script>
+</head>
+
+<body>
+    <div id="app" v-scope="TranslatorApp()">
+        <div class="container">
+            <!-- 头部 -->
+            <header class="header">
+                <div class="logo">
+                    <span class="icon">🔤</span>
+                    <h1>豆包翻译器</h1>
+                    <span class="version">Go + Vue Petite</span>
+                </div>
+                <div class="stats">
+                    <span v-if="cached" class="cached-badge">✨ 缓存命中</span>
+                    <span class="history-count">📚 历史: {{ history.length }}</span>
+                </div>
+            </header>
+
+            <!-- 语言选择栏 -->
+            <div class="lang-bar">
+                <div class="lang-selector">
+                    <label>源语言</label>
+                    <select v-model="sourceLang" class="lang-select">
+                        <option value="">自动检测</option>
+                        <option v-for="(name, code) in languages" :value="code">
+                            {{ name }}
+                        </option>
+                    </select>
+                </div>
+                
+                <button @click="swapLanguages" class="swap-btn" title="交换语言">
+                    ⇄
+                </button>
+                
+                <div class="lang-selector">
+                    <label>目标语言</label>
+                    <select v-model="targetLang" class="lang-select">
+                        <option v-for="(name, code) in languages" :value="code">
+                            {{ name }}
+                        </option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 主翻译区域 -->
+            <div class="translate-container">
+                <!-- 输入面板 -->
+                <div class="panel input-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">输入文本</span>
+                        <span class="char-count">{{ inputText.length }} / 5000</span>
+                    </div>
+                    <textarea 
+                        v-model="inputText"
+                        @input="handleInput"
+                        class="text-area"
+                        :style="{fontSize: fontSize + 'px'}"
+                        placeholder="输入或粘贴文本（支持 Markdown 和 LaTeX）..."
+                        maxlength="5000"
+                    ></textarea>
+                    <div class="panel-footer">
+                        <button @click="clearInput" class="btn btn-secondary" :disabled="!inputText">
+                            清空
+                        </button>
+                        <button @click="pasteText" class="btn btn-secondary">
+                            粘贴
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 输出面板 -->
+                <div class="panel output-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">翻译结果</span>
+                        <span v-if="loading" class="loading">翻译中...</span>
+                    </div>
+                    <div 
+                        class="result-area"
+                        :style="{fontSize: fontSize + 'px'}"
+                        v-html="renderedOutput"
+                    ></div>
+                    <div class="panel-footer">
+                        <button 
+                            @click="copyResult" 
+                            class="btn btn-primary"
+                            :disabled="!outputText"
+                        >
+                            {{ copyBtnText }}
+                        </button>
+                        <button 
+                            @click="clearOutput" 
+                            class="btn btn-secondary"
+                            :disabled="!outputText"
+                        >
+                            清空
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 控制栏 -->
+            <div class="control-bar">
+                <div class="control-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" v-model="autoTranslate">
+                        <span>自动翻译</span>
+                    </label>
+                </div>
+                
+                <div class="control-group">
+                    <label class="slider-label">
+                        <span>字体大小</span>
+                        <input 
+                            type="range" 
+                            v-model="fontSize" 
+                            min="12" 
+                            max="26"
+                            class="slider"
+                        >
+                        <span class="slider-value">{{ fontSize }}px</span>
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <button @click="translateNow" class="btn btn-primary" :disabled="!inputText || loading">
+                        立即翻译
+                    </button>
+                </div>
+            </div>
+
+            <!-- 错误提示 -->
+            <div v-if="error" class="error-message">
+                ⚠️ {{ error }}
+            </div>
+
+            <!-- 历史记录 -->
+            <details class="history-section">
+                <summary class="history-header">
+                    翻译历史 ({{ history.length }}条)
+                    <button @click.stop="clearHistory" class="btn btn-small" v-if="history.length">
+                        清空历史
+                    </button>
+                </summary>
+                <div class="history-list">
+                    <div 
+                        v-for="(item, index) in history" 
+                        :key="index"
+                        class="history-item"
+                        @click="loadFromHistory(item)"
+                    >
+                        <div class="history-time">{{ formatTime(item.timestamp) }}</div>
+                        <div class="history-preview">
+                            <span class="history-source">{{ item.source || '自动' }}</span>
+                            <span class="history-arrow">→</span>
+                            <span class="history-target">{{ item.target }}</span>
+                        </div>
+                        <div class="history-text">{{ item.preview }}</div>
+                    </div>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -2,6 +2,8 @@
 .env
 *.env
 !.env.example
+.env.local
+.env.*.local
 
 # Go 编译产物
 translator
@@ -11,6 +13,7 @@ translator
 *.dylib
 *.test
 *.out
+dist/
 
 # IDE
 .vscode/
@@ -25,3 +28,20 @@ Thumbs.db
 *.log
 tmp/
 temp/
+
+# Build artifacts
+coverage.out
+coverage.html
+*.prof
+*.cov
+
+# Docker
+docker-compose.override.yml
+
+# Generated files
+*.gen.go
+mocks/
+
+# Testing
+testdata/
+.fake-*

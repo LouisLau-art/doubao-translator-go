@@ -38,7 +38,7 @@
 
 1. **克隆项目**
    ```bash
-   git clone https://github.com/yourusername/doubao-translator-go.git
+   git clone https://github.com/LouisLau-art/doubao-translator-go.git
    cd doubao-translator-go
    ```
 
